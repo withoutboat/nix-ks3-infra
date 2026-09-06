@@ -16,9 +16,10 @@ Declarative Nix infrastructure and modules for deploying and managing lightweigh
   - System-level installation of DevOps & IaC tools (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`).
 
 - **Home Manager Module (`homeManagerModules.default`)**:
-  - Sets up complete Kubernetes and DevOps developer workstation tooling.
-  - Manages `kubectl`, `helm`, `k9s`, `opentofu`, and `terraform`.
-  - Automatic `~/.kube/config` symlinking (e.g., to `/etc/rancher/k3s/k3s.yaml` via `mkOutOfStoreSymlink`) and session variable exports.
+  - **Minimal runnable K3s in user session**: Run K3s directly in Home Manager via rootless mode (`services.k3s-infra.enable = true` or `programs.k3s-infra.server.enable = true`).
+  - Automated `systemd.user.services.k3s-infra` with auto-start and helper CLI utilities (`k3s-up`, `k3s-down`).
+  - Sets up complete Kubernetes and DevOps developer workstation tooling (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`).
+  - Automatic `~/.kube/config` configuration, symlinking, and session variable exports.
   - Pre-configured shell aliases (`k`, `kgp`, `kgpa`, `kga`, `kgn`, `kgs`, `klf`, `tf`, etc.).
 
 - **Terraform & OpenTofu Support**:
@@ -43,6 +44,7 @@ nix-ks3-infra/
 │   │   └── k3s.nix               # K3s service, firewall, and kubeconfig logic
 │   └── home-manager/
 │       ├── default.nix           # Home Manager module entry point
+│       ├── service.nix           # Rootless K3s user service, helpers & systemd unit
 │       └── tools.nix             # CLI utilities, kubeconfig, and shell aliases
 ├── examples/
 │   ├── nixos/
@@ -273,7 +275,44 @@ Secondary control-plane servers:
 
 ---
 
-## 👤 Home Manager Configuration (`programs.k3s-infra`)
+## 👤 Home Manager Configuration
+
+The Home Manager module provides two complementary capabilities:
+1. **Running a minimal rootless K3s cluster in user space (`services.k3s-infra`)**;
+2. **Setting up developer CLI tools, kubeconfig, and shell aliases (`programs.k3s-infra`)**.
+
+### 1. Minimal K3s Launch in User Session (`services.k3s-infra`)
+
+```nix
+{
+  # Minimal rootless K3s server in user space
+  services.k3s-infra = {
+    enable = true;
+    # rootless = true; # Default
+    # autoStart = true; # Starts automatically via systemd user service on Linux
+  };
+
+  # Developer tooling and aliases
+  programs.k3s-infra = {
+    enable = true;
+    tools.enable = true;
+  };
+}
+```
+
+When enabled, this automatically:
+- Starts a rootless K3s server under your user account with state stored in `~/.local/share/k3s`.
+- Writes kubeconfig directly to `~/.kube/config` and exports `KUBECONFIG`.
+- Sets up `systemd.user.services.k3s-infra` with auto-restart.
+- Provides helper commands:
+  - `k3s-up` — start user K3s service or run in foreground;
+  - `k3s-down` — stop user K3s service.
+
+*(Alternatively, you can also enable it via `programs.k3s-infra = { enable = true; server.enable = true; };`).*
+
+### 2. Client-Only Tools Configuration (`programs.k3s-infra`)
+
+For connecting to an existing remote or system-wide K3s node without running a local daemon:
 
 ```nix
 {
@@ -290,7 +329,7 @@ Secondary control-plane servers:
       terraform.enable = false; # Terraform CLI (requires allowUnfree)
     };
 
-    # Kubeconfig configuration
+    # Kubeconfig configuration (points to system-wide K3s)
     kubeconfig = {
       enable = true;
       symlinkSource = "/etc/rancher/k3s/k3s.yaml";
@@ -310,9 +349,33 @@ Secondary control-plane servers:
 
 ### Home Manager Options Reference
 
+#### Rootless Service (`services.k3s-infra`)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `services.k3s-infra.enable` | `bool` | `false` | Enable minimal rootless K3s user service. |
+| `services.k3s-infra.role` | `enum [ "server" "agent" ]` | `"server"` | Node role (`server` or `agent`). |
+| `services.k3s-infra.rootless` | `bool` | `true` | Run in rootless mode (recommended for unprivileged user). |
+| `services.k3s-infra.dataDir` | `str` | `"~/.local/share/k3s"` | State directory for rootless K3s. |
+| `services.k3s-infra.port` | `port` | `6443` | API server listen port. |
+| `services.k3s-infra.serverAddr` | `nullOr str` | `null` | Server to join (for agent role). |
+| `services.k3s-infra.token` | `nullOr str` | `null` | Cluster token. |
+| `services.k3s-infra.tokenFile` | `nullOr path` | `null` | Path to token file. |
+| `services.k3s-infra.disabledComponents` | `listOf str` | `[]` | Components to disable (`traefik`, `servicelb`, etc.). |
+| `services.k3s-infra.extraFlags` | `listOf str` | `[]` | Extra CLI flags passed to K3s. |
+| `services.k3s-infra.autoStart` | `bool` | `true` | Start automatically via systemd user service. |
+| `services.k3s-infra.kubeconfig.path` | `str` | `"~/.kube/config"` | Destination path for generated kubeconfig. |
+| `services.k3s-infra.kubeconfig.setKubeconfigEnv` | `bool` | `true` | Export `KUBECONFIG` environment variable. |
+| `services.k3s-infra.helperScripts` | `bool` | `true` | Install `k3s-up` and `k3s-down` CLI helpers. |
+
+*Note: Compatible option alias `services.ks3-infra` is also available.*
+
+#### User Tooling (`programs.k3s-infra`)
+
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `programs.k3s-infra.enable` | `bool` | `false` | Enable user environment tooling. |
+| `programs.k3s-infra.server.enable` | `bool` | `false` | Shortcut to enable `services.k3s-infra.enable`. |
 | `programs.k3s-infra.tools.enable` | `bool` | `true` | Install cluster & IaC tools (`kubectl`, `helm`, `k9s`, `opentofu`). |
 | `programs.k3s-infra.tools.kubectl.enable` | `bool` | `true` | Install `kubectl`. |
 | `programs.k3s-infra.tools.helm.enable` | `bool` | `true` | Install `helm`. |

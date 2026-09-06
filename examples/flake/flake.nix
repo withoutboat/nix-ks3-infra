@@ -53,12 +53,15 @@
             home.homeDirectory = "/home/devops";
             home.stateVersion = "24.05";
 
+            # 1. Минимальный запуск K3s в Home Manager (rootless)
+            services.k3s-infra.enable = true;
+
+            # 2. Клиентские инструменты
             programs.k3s-infra = {
               enable = true;
               tools.enable = true; # kubectl, helm, k9s, opentofu
               kubeconfig = {
                 enable = true;
-                symlinkSource = "/etc/rancher/k3s/k3s.yaml";
                 setKubeconfigEnv = true;
               };
             };

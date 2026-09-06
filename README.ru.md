@@ -14,9 +14,10 @@
   - Настройка прав доступа к `kubeconfig` и автоматический экспорт переменной окружения `KUBECONFIG`.
   - Декларативное развертывание Kubernetes-манифестов прямо из Nix-конфигурации (`manifests`).
 - **Home Manager Module (`homeManagerModules.default`)**:
-  - Подготовка рабочего окружения DevOps / администратора кластера.
-  - Установка инструментов: `kubectl`, `helm`, `k9s`, `opentofu`, `terraform`.
-  - Симлинк или генерация пользовательского `~/.kube/config` и экспорт `KUBECONFIG`.
+  - **Минимальный запуск K3s в сессии пользователя**: запуск rootless K3s через `services.k3s-infra.enable = true` (или `programs.k3s-infra.server.enable = true`).
+  - Пользовательский systemd-юнит `systemd.user.services.k3s-infra` с автостартом и утилитами управления `k3s-up` / `k3s-down`.
+  - Подготовка рабочего окружения DevOps / администратора кластера (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`).
+  - Симлинк или автоматическая генерация пользовательского `~/.kube/config` и экспорт `KUBECONFIG`.
   - Предустановленные шелловые алиасы (`k`, `kgp`, `kga`, `kgs`, `klf`, `tf` и др.).
 - **DevShell (`nix develop`)**:
   - Готовая среда для администрирования кластера без необходимости загрязнять глобальную систему (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`, `k3s`).
@@ -34,6 +35,7 @@ nix-ks3-infra/
 │   │   └── k3s.nix               # Основная логика K3s службы, firewall и kubeconfig
 │   └── home-manager/
 │       ├── default.nix           # Точка входа Home Manager модуля
+│       ├── service.nix           # Служба K3s rootless и утилиты k3s-up / k3s-down
 │       └── tools.nix             # CLI-утилиты, kubeconfig и алиасы
 ├── examples/
 │   ├── nixos/
@@ -241,9 +243,41 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 
 ---
 
-## 👤 Конфигурация Home Manager (`programs.k3s-infra`)
+## 👤 Конфигурация Home Manager
 
-Модуль Home Manager обеспечивает комфортную работу с кластером для локального пользователя:
+Модуль Home Manager поддерживает два взаимодополняющих сценария:
+1. **Минимальный запуск K3s в домашней директории пользователя (`services.k3s-infra`)** в rootless-режиме;
+2. **Настройка утилит разработчика, kubeconfig и алиасов (`programs.k3s-infra`)**.
+
+### 1. Минимальный запуск K3s в Home Manager (`services.k3s-infra`)
+
+```nix
+{
+  # Минимальный запуск K3s без root-прав (rootless)
+  services.k3s-infra = {
+    enable = true;
+    # rootless = true; # По умолчанию
+    # autoStart = true; # Автозапуск через systemd.user.services
+  };
+
+  # Утилиты управления
+  programs.k3s-infra = {
+    enable = true;
+    tools.enable = true;
+  };
+}
+```
+
+При включении:
+- Автоматически запускается K3s в rootless-режиме, сохраняя данные в `~/.local/share/k3s`.
+- Записывается `~/.kube/config` и экспортируется `KUBECONFIG`.
+- Доступны консольные помощники:
+  - `k3s-up` — запуск пользовательского сервиса K3s;
+  - `k3s-down` — остановка сервиса K3s.
+
+*(Также доступен быстрый вариант активации через `programs.k3s-infra = { enable = true; server.enable = true; };`).*
+
+### 2. Только клиентские инструменты (`programs.k3s-infra`)
 
 ```nix
 {
@@ -260,7 +294,7 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
       terraform.enable = false; # HashiCorp Terraform при необходимости
     };
 
-    # Настройка kubeconfig пользователя
+    # Настройка kubeconfig пользователя (симлинк на системный K3s)
     kubeconfig = {
       enable = true;
       symlinkSource = "/etc/rancher/k3s/k3s.yaml";
@@ -280,9 +314,31 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 
 ### Таблица опций Home Manager
 
+#### Пользовательский сервис (`services.k3s-infra`)
+
+| Опция | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `services.k3s-infra.enable` | `bool` | `false` | Включение сервиса K3s в сессии пользователя. |
+| `services.k3s-infra.role` | `enum [ "server" "agent" ]` | `"server"` | Роль ноды (`server` или `agent`). |
+| `services.k3s-infra.rootless` | `bool` | `true` | Запуск в режиме rootless. |
+| `services.k3s-infra.dataDir` | `str` | `"~/.local/share/k3s"` | Каталог состояния K3s. |
+| `services.k3s-infra.port` | `port` | `6443` | Порт API сервера. |
+| `services.k3s-infra.serverAddr` | `nullOr str` | `null` | Адрес сервера для подключения (для агента). |
+| `services.k3s-infra.token` | `nullOr str` | `null` | Токен кластера. |
+| `services.k3s-infra.disabledComponents` | `listOf str` | `[]` | Отключаемые компоненты (`traefik`, `servicelb` и др.). |
+| `services.k3s-infra.autoStart` | `bool` | `true` | Автозапуск через systemd user service. |
+| `services.k3s-infra.kubeconfig.path` | `str` | `"~/.kube/config"` | Путь для записи kubeconfig. |
+| `services.k3s-infra.kubeconfig.setKubeconfigEnv` | `bool` | `true` | Экспорт переменной `KUBECONFIG`. |
+| `services.k3s-infra.helperScripts` | `bool` | `true` | Установка скриптов `k3s-up` и `k3s-down`. |
+
+*Примечание: Также доступен совместимый псевдоним `services.ks3-infra`.*
+
+#### Инструменты пользователя (`programs.k3s-infra`)
+
 | Опция | Тип | По умолчанию | Описание |
 |---|---|---|---|
 | `programs.k3s-infra.enable` | `bool` | `false` | Включение модуля пользовательского окружения. |
+| `programs.k3s-infra.server.enable` | `bool` | `false` | Ярлык для включения `services.k3s-infra.enable`. |
 | `programs.k3s-infra.tools.enable` | `bool` | `true` | Установка инструментов управления (`kubectl`, `helm`, `k9s`, `opentofu`). |
 | `programs.k3s-infra.tools.kubectl.enable` | `bool` | `true` | Установка `kubectl`. |
 | `programs.k3s-infra.tools.helm.enable` | `bool` | `true` | Установка `kubernetes-helm`. |

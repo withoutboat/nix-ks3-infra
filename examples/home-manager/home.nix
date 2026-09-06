@@ -5,6 +5,16 @@
   # Подключение модуля home-manager (если не через flake)
   # imports = [ ../../modules/home-manager ];
 
+  # 1. Минимальный запуск K3s в домашнем каталоге пользователя (rootless)
+  services.k3s-infra = {
+    enable = true;          # Включение пользовательского сервиса K3s
+    rootless = true;        # Запуск без root прав
+    autoStart = true;       # Автостарт через systemd user service (на Linux)
+    # port = 6443;
+    # disabledComponents = [ "traefik" "servicelb" ]; # опционально
+  };
+
+  # 2. Утилиты разработчика и окружение
   programs.k3s-infra = {
     enable = true;
 
@@ -23,12 +33,12 @@
       ];
     };
 
-    # Настройка kubeconfig пользователя
+    # Настройка kubeconfig пользователя (по умолчанию использует ~/.kube/config от локального сервиса K3s)
     kubeconfig = {
       enable = true;
-      # Симлинк на системный kubeconfig, созданный K3s сервером
-      symlinkSource = "/etc/rancher/k3s/k3s.yaml";
       setKubeconfigEnv = true;
+      # Для подключения к системному K3s вместо локального:
+      # symlinkSource = "/etc/rancher/k3s/k3s.yaml";
     };
 
     # Полезные алиасы (k, kgp, kgpa, kga, kgs, klf, tf и др.)
