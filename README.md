@@ -1,77 +1,110 @@
 # nix-ks3-infra
 
-Декларативная инфраструктура и Nix-модули для развертывания и управления легковесным Kubernetes-кластером (**K3s**) в NixOS и Home Manager.
+Declarative Nix infrastructure and modules for deploying and managing lightweight Kubernetes (**K3s**) clusters on NixOS, accompanied by Home Manager developer tooling and **Terraform / OpenTofu** IaC integration.
 
 ---
 
-## 🌟 Возможности
+## 🌟 Key Features
 
-- **NixOS Module (`nixosModules.default`)**:
-  - Минимальный запускаемый K3s сервер или агент в одну строчку конфигурации.
-  - Поддержка одиночного узла (Single-Node) и высокодоступных отказоустойчивых кластеров (HA с embedded etcd).
-  - Автоматическое управление правилами межсетевого экрана (NixOS Firewall) для API, kubelet, etcd и Flannel (VXLAN / WireGuard).
-  - Возможность отключения встроенных компонентов K3s (`traefik`, `servicelb`, `local-storage`, `metrics-server`) для установки собственных решений (например, Cilium, Ingress-NGINX).
-  - Настройка прав доступа к `kubeconfig` и автоматический экспорт переменной окружения `KUBECONFIG`.
-  - Декларативное развертывание Kubernetes-манифестов прямо из Nix-конфигурации (`manifests`).
+- **NixOS System Module (`nixosModules.default`)**:
+  - One-line setup for a production-ready K3s control-plane or worker node.
+  - Supports both standalone Single-Node setups and High-Availability (HA) multi-master clusters with embedded etcd (`clusterInit = true`).
+  - Automated NixOS Firewall configuration for API server, Kubelet, etcd, and Flannel CNI (VXLAN / WireGuard).
+  - Ability to disable built-in K3s components (`traefik`, `servicelb`, `local-storage`, `metrics-server`) to deploy custom alternatives (such as Cilium or Ingress-NGINX).
+  - Flexible `kubeconfig` permissions (`mode = "0644"`) and automatic system-wide `KUBECONFIG` environment variable export.
+  - Native declarative Kubernetes manifests deployment directly from Nix configurations (`manifests`).
+  - System-level installation of DevOps & IaC tools (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`).
+
 - **Home Manager Module (`homeManagerModules.default`)**:
-  - Подготовка рабочего окружения DevOps / администратора кластера.
-  - Установка инструментов: `kubectl`, `helm`, `k9s`, `opentofu`, `terraform`.
-  - Симлинк или генерация пользовательского `~/.kube/config` и экспорт `KUBECONFIG`.
-  - Предустановленные шелловые алиасы (`k`, `kgp`, `kga`, `kgs`, `klf`, `tf` и др.).
+  - Sets up complete Kubernetes and DevOps developer workstation tooling.
+  - Manages `kubectl`, `helm`, `k9s`, `opentofu`, and `terraform`.
+  - Automatic `~/.kube/config` symlinking (e.g., to `/etc/rancher/k3s/k3s.yaml` via `mkOutOfStoreSymlink`) and session variable exports.
+  - Pre-configured shell aliases (`k`, `kgp`, `kgpa`, `kga`, `kgn`, `kgs`, `klf`, `tf`, etc.).
+
+- **Terraform & OpenTofu Support**:
+  - Available out of the box in `devShell` (`nix develop`).
+  - Configurable in both NixOS and Home Manager modules (`tools.opentofu.enable` and `tools.terraform.enable`).
+  - Includes working Terraform/OpenTofu examples (`examples/terraform/`) configuring Kubernetes and Helm providers against the local K3s cluster.
+
 - **DevShell (`nix develop`)**:
-  - Готовая среда для администрирования кластера без необходимости загрязнять глобальную систему (`kubectl`, `helm`, `k9s`, `opentofu`, `terraform`, `k3s`).
+  - Ready-to-use operator shell containing `kubectl`, `helm`, `k9s`, `opentofu`, `terraform`, and `k3s` (on Linux hosts).
+  - Automatic detection of `/etc/rancher/k3s/k3s.yaml` with zero-config setup.
 
 ---
 
-## 📁 Структура репозитория
+## 📁 Repository Structure
 
 ```text
 nix-ks3-infra/
-├── flake.nix                     # Flake с экспортом модулей и devShell
+├── flake.nix                     # Flake exporting modules and devShell
 ├── modules/
 │   ├── nixos/
-│   │   ├── default.nix           # Точка входа NixOS модуля и алиасы
-│   │   └── k3s.nix               # Основная логика K3s службы, firewall и kubeconfig
+│   │   ├── default.nix           # NixOS module entry point and aliases
+│   │   └── k3s.nix               # K3s service, firewall, and kubeconfig logic
 │   └── home-manager/
-│       ├── default.nix           # Точка входа Home Manager модуля
-│       └── tools.nix             # CLI-утилиты, kubeconfig и алиасы
+│       ├── default.nix           # Home Manager module entry point
+│       └── tools.nix             # CLI utilities, kubeconfig, and shell aliases
 ├── examples/
 │   ├── nixos/
-│   │   └── configuration.nix     # Пример системного configuration.nix
+│   │   └── configuration.nix     # Example NixOS configuration
 │   ├── home-manager/
-│   │   └── home.nix              # Пример конфигурации пользователя Home Manager
+│   │   └── home.nix              # Example Home Manager user configuration
 │   ├── multi-node/
-│   │   ├── server.nix            # Мастер-нода кластера
-│   │   └── agent.nix             # Воркер-нода (агент)
-│   └── flake/
-│       └── flake.nix             # Пример корневого flake с интеграцией системы и HM
-└── README.md
+│   │   ├── server.nix            # Multi-node primary server (HA etcd)
+│   │   └── agent.nix             # Multi-node worker agent
+│   ├── flake/
+│   │   └── flake.nix             # Root flake integration example
+│   └── terraform/
+│       └── main.tf               # Terraform/OpenTofu example with K8s/Helm providers
+├── README.ru.md                  # Russian documentation
+└── README.md                     # Main English documentation
 ```
 
 ---
 
-## 🚀 Быстрый старт: DevShell
+## 🚀 Quickstart: DevShell
 
-Для быстрого входа в окружение со всеми необходимыми утилитами:
+To enter a development and administration shell with all tools pre-installed:
 
 ```bash
 nix develop
 ```
 
-При входе в оболочку будут доступны:
-- `kubectl` — клиент управления Kubernetes;
-- `helm` — пакетный менеджер чартов Kubernetes;
-- `k9s` — интерактивный консольный интерфейс (TUI) для мониторинга и управления;
-- `opentofu` (`tofu`) и `terraform` — средства управления IaC;
-- `k3s` (на Linux-хостах).
+The shell provides:
+- `kubectl` — Kubernetes CLI;
+- `helm` — Kubernetes package manager;
+- `k9s` — Terminal UI for Kubernetes;
+- `opentofu` (`tofu`) — Open-source Terraform fork;
+- `terraform` — HashiCorp Terraform CLI;
+- `k3s` — K3s binary (on Linux platforms).
 
-DevShell автоматически обнаруживает `/etc/rancher/k3s/k3s.yaml` и экспортирует `KUBECONFIG`, если он существует.
+When launched, the devShell automatically checks for `/etc/rancher/k3s/k3s.yaml` and exports `KUBECONFIG` if present.
 
 ---
 
-## 🛠️ Подключение модулей в Flake
+## 🏗️ Terraform & OpenTofu Support
 
-Добавьте репозиторий в `inputs` вашего системного `flake.nix`:
+Terraform and OpenTofu are supported across the stack:
+
+1. **In DevShell**: Run `tofu` or `terraform` immediately after entering `nix develop`.
+2. **In NixOS Module**: Enable `services.k3s-infra.tools.opentofu.enable = true` or `tools.terraform.enable = true`.
+3. **In Home Manager**: Enable `programs.k3s-infra.tools.opentofu.enable = true` or `tools.terraform.enable = true` (also configures the `tf` alias).
+4. **Sample Terraform Project**: See `examples/terraform/main.tf` for an example of configuring Kubernetes and Helm providers pointing to `/etc/rancher/k3s/k3s.yaml`:
+
+```bash
+cd examples/terraform
+tofu init
+tofu plan
+tofu apply
+```
+
+*(Note: HashiCorp Terraform requires `nixpkgs.config.allowUnfree = true` in Nix due to its BSL license. OpenTofu is fully open-source and enabled by default).*
+
+---
+
+## 🛠️ Flake Integration
+
+Add `nix-ks3-infra` to your system `flake.nix`:
 
 ```nix
 {
@@ -88,7 +121,7 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
     nixosConfigurations.my-k8s-node = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
-        # 1. Подключение NixOS модуля K3s
+        # NixOS K3s module
         nix-ks3-infra.nixosModules.default
 
         ./configuration.nix
@@ -98,7 +131,7 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
     homeConfigurations."myuser" = home-manager.lib.homeManagerConfiguration {
       pkgs = nixpkgs.legacyPackages."x86_64-linux";
       modules = [
-        # 2. Подключение Home Manager модуля
+        # Home Manager tools module
         nix-ks3-infra.homeManagerModules.default
 
         ./home.nix
@@ -110,27 +143,27 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 
 ---
 
-## ⚙️ Конфигурация NixOS модуля (`services.k3s-infra`)
+## ⚙️ NixOS Module Configuration (`services.k3s-infra`)
 
-### 1. Минимальный одиночный сервер (Single-Node K3s)
+### 1. Minimal Standalone Server (Single-Node K3s)
 
 ```nix
 {
   services.k3s-infra = {
     enable = true;
-    role = "server"; # По умолчанию
+    role = "server"; # Default
   };
 }
 ```
 
-Модуль автоматически:
-1. Запустит сервис `k3s` в режиме control-plane + worker.
-2. Откроет порт API сервера (`6443/tcp`) и Kubelet (`10250/tcp`).
-3. Установит права `0644` на файл `/etc/rancher/k3s/k3s.yaml`.
-4. Экспортирует переменную окружения `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` для всех сессий.
-5. Установит `kubectl`, `helm` и `k9s` в систему.
+This minimal configuration automatically:
+1. Runs `k3s` in server mode (control-plane + worker).
+2. Opens firewall ports for API Server (`6443/tcp`) and Kubelet (`10250/tcp`).
+3. Sets `/etc/rancher/k3s/k3s.yaml` permissions to `0644`.
+4. Exports `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` system-wide.
+5. Installs `kubectl`, `helm`, and `k9s`.
 
-### 2. Сервер с отключением стандартных компонентов и кастомными портами
+### 2. Server with Custom Networking and Disabled Components
 
 ```nix
 {
@@ -138,21 +171,21 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
     enable = true;
     role = "server";
 
-    # Отключение компонентов для установки альтернатив (Cilium / Ingress NGINX / MetalLB)
+    # Disable built-in components to install custom ones (e.g. Cilium, Ingress-NGINX)
     disabledComponents = [
       "traefik"
       "servicelb"
       "local-storage"
     ];
 
-    # Открытие портов для входящего веб-трафика
+    # Open firewall ports for web traffic and NodePort
     firewall = {
       enable = true;
-      openIngressPorts = true; # 80 и 443 TCP
-      additionalTCPPorts = [ 30000 30001 ]; # NodePort сервисы
+      openIngressPorts = true; # TCP 80 & 443
+      additionalTCPPorts = [ 30000 30001 ];
     };
 
-    # Автоматически применяемые манифесты при запуске K3s
+    # Automatically applied manifests
     manifests = {
       "demo-namespace.yaml" = ''
         apiVersion: v1
@@ -165,7 +198,7 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 }
 ```
 
-### 3. Рабочий узел (Agent / Worker Node)
+### 3. Worker Node (Agent)
 
 ```nix
 {
@@ -173,34 +206,31 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
     enable = true;
     role = "agent";
 
-    # Адрес мастер-ноды
+    # Master server address
     serverAddr = "https://192.168.1.10:6443";
 
-    # Путь к файлу с токеном кластера (рекомендуется sops-nix или agenix)
+    # Path to cluster token file
     tokenFile = "/run/secrets/k3s-token";
-
-    # Или строковый токен для тестовых сред:
-    # token = "secret-token";
   };
 }
 ```
 
-### 4. Отказоустойчивый кластер (High-Availability c embedded etcd)
+### 4. High-Availability Cluster (HA with embedded etcd)
 
-На первом сервере:
+Primary server:
 ```nix
 {
   services.k3s-infra = {
     enable = true;
     role = "server";
-    clusterInit = true; # Инициализирует etcd
+    clusterInit = true; # Initializes embedded etcd
     tokenFile = "/run/secrets/k3s-token";
     extraFlags = [ "--tls-san k8s.example.com" ];
   };
 }
 ```
 
-На последующих серверах control-plane:
+Secondary control-plane servers:
 ```nix
 {
   services.k3s-infra = {
@@ -214,60 +244,60 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 
 ---
 
-## 📋 Таблица опций модуля NixOS
+## 📋 NixOS Module Options Reference
 
-| Опция | Тип | По умолчанию | Описание |
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `services.k3s-infra.enable` | `bool` | `false` | Включение сервиса K3s. |
-| `services.k3s-infra.role` | `enum [ "server" "agent" ]` | `"server"` | Роль ноды: `server` (мастер + воркер) или `agent` (только воркер). |
-| `services.k3s-infra.serverAddr` | `nullOr str` | `null` | URL мастер-сервера (обязателен для `agent` и дополнительных мастеров). |
-| `services.k3s-infra.token` | `nullOr str` | `null` | Токен кластера в виде строки. |
-| `services.k3s-infra.tokenFile` | `nullOr path` | `null` | Путь к файлу с токеном кластера (рекомендуется). |
-| `services.k3s-infra.clusterInit` | `bool` | `false` | Инициализировать HA кластер с embedded etcd. |
-| `services.k3s-infra.port` | `port` | `6443` | Порт API-сервера K3s. |
-| `services.k3s-infra.flannelBackend` | `enum [ "vxlan" "host-gw" "wireguard-native" "none" ]` | `"vxlan"` | Бэкенд Flannel CNI (`none` для Cilium/Calico). |
-| `services.k3s-infra.disabledComponents` | `listOf str` | `[]` | Отключаемые компоненты (`traefik`, `servicelb`, `local-storage`, `metrics-server`). |
-| `services.k3s-infra.extraFlags` | `listOf str` | `[]` | Произвольные аргументы командной строки K3s. |
-| `services.k3s-infra.firewall.enable` | `bool` | `true` | Автоматически открывать порты в NixOS Firewall. |
-| `services.k3s-infra.firewall.openIngressPorts` | `bool` | `false` | Открыть 80/tcp и 443/tcp для Ingress. |
-| `services.k3s-infra.firewall.additionalTCPPorts` | `listOf port` | `[]` | Дополнительные TCP порты (например, NodePort). |
-| `services.k3s-infra.firewall.additionalUDPPorts` | `listOf port` | `[]` | Дополнительные UDP порты. |
-| `services.k3s-infra.kubeconfig.mode` | `nullOr str` | `"0644"` | Права доступа к `/etc/rancher/k3s/k3s.yaml`. |
-| `services.k3s-infra.kubeconfig.setKubeconfigEnv`| `bool` | `true` | Экспортировать `KUBECONFIG` на уровне системы. |
-| `services.k3s-infra.tools.enable` | `bool` | `true` | Устанавливать `kubectl`, `helm`, `k9s` в системные пакеты. |
-| `services.k3s-infra.manifests` | `attrsOf (lines \| path)` | `{}` | Манифесты для автоприменения (`/var/lib/rancher/k3s/server/manifests/`). |
+| `services.k3s-infra.enable` | `bool` | `false` | Enable K3s infrastructure service. |
+| `services.k3s-infra.role` | `enum [ "server" "agent" ]` | `"server"` | Node role (`server` or `agent`). |
+| `services.k3s-infra.serverAddr` | `nullOr str` | `null` | URL of the control-plane server to join. |
+| `services.k3s-infra.token` | `nullOr str` | `null` | Cluster join token (string). |
+| `services.k3s-infra.tokenFile` | `nullOr path` | `null` | Path to cluster join token file (recommended). |
+| `services.k3s-infra.clusterInit` | `bool` | `false` | Initialize HA cluster with embedded etcd. |
+| `services.k3s-infra.port` | `port` | `6443` | API server listen port. |
+| `services.k3s-infra.flannelBackend` | `enum [ "vxlan" "host-gw" "wireguard-native" "none" ]` | `"vxlan"` | Flannel CNI backend (`none` for Cilium/Calico). |
+| `services.k3s-infra.disabledComponents` | `listOf str` | `[]` | Components to disable (`traefik`, `servicelb`, `local-storage`, `metrics-server`). |
+| `services.k3s-infra.extraFlags` | `listOf str` | `[]` | Extra CLI flags passed to K3s. |
+| `services.k3s-infra.firewall.enable` | `bool` | `true` | Automatically configure NixOS firewall rules. |
+| `services.k3s-infra.firewall.openIngressPorts` | `bool` | `false` | Open 80/tcp and 443/tcp for Ingress. |
+| `services.k3s-infra.firewall.additionalTCPPorts` | `listOf port` | `[]` | Additional TCP ports to allow. |
+| `services.k3s-infra.firewall.additionalUDPPorts` | `listOf port` | `[]` | Additional UDP ports to allow. |
+| `services.k3s-infra.kubeconfig.mode` | `nullOr str` | `"0644"` | Permissions for `/etc/rancher/k3s/k3s.yaml`. |
+| `services.k3s-infra.kubeconfig.setKubeconfigEnv`| `bool` | `true` | Export `KUBECONFIG` system-wide. |
+| `services.k3s-infra.tools.enable` | `bool` | `true` | Install DevOps & IaC tools in system packages. |
+| `services.k3s-infra.tools.opentofu.enable` | `bool` | `true` | Install OpenTofu system-wide. |
+| `services.k3s-infra.tools.terraform.enable` | `bool` | `false` | Install Terraform system-wide (unfree). |
+| `services.k3s-infra.manifests` | `attrsOf (lines | path)` | `{}` | Declarative manifests for `/var/lib/rancher/k3s/server/manifests/`. |
 
-*Примечание: Также доступен совместимый псевдоним `services.ks3-infra`.*
+*Note: Compatible option alias `services.ks3-infra` is also available.*
 
 ---
 
-## 👤 Конфигурация Home Manager (`programs.k3s-infra`)
-
-Модуль Home Manager обеспечивает комфортную работу с кластером для локального пользователя:
+## 👤 Home Manager Configuration (`programs.k3s-infra`)
 
 ```nix
 {
   programs.k3s-infra = {
     enable = true;
 
-    # Установка клиентских инструментов
+    # CLI tools configuration
     tools = {
       enable = true;
       kubectl.enable = true;
       helm.enable = true;
       k9s.enable = true;
-      opentofu.enable = true;   # OpenTofu
-      terraform.enable = false; # HashiCorp Terraform при необходимости
+      opentofu.enable = true;   # OpenTofu CLI
+      terraform.enable = false; # Terraform CLI (requires allowUnfree)
     };
 
-    # Настройка kubeconfig пользователя
+    # Kubeconfig configuration
     kubeconfig = {
       enable = true;
       symlinkSource = "/etc/rancher/k3s/k3s.yaml";
       setKubeconfigEnv = true;
     };
 
-    # Предустановленные полезные алиасы
+    # Shell aliases
     shellAliases = {
       enable = true;
       extraAliases = {
@@ -278,30 +308,29 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 }
 ```
 
-### Таблица опций Home Manager
+### Home Manager Options Reference
 
-| Опция | Тип | По умолчанию | Описание |
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `programs.k3s-infra.enable` | `bool` | `false` | Включение модуля пользовательского окружения. |
-| `programs.k3s-infra.tools.enable` | `bool` | `true` | Установка инструментов управления (`kubectl`, `helm`, `k9s`, `opentofu`). |
-| `programs.k3s-infra.tools.kubectl.enable` | `bool` | `true` | Установка `kubectl`. |
-| `programs.k3s-infra.tools.helm.enable` | `bool` | `true` | Установка `kubernetes-helm`. |
-| `programs.k3s-infra.tools.k9s.enable` | `bool` | `true` | Установка `k9s`. |
-| `programs.k3s-infra.tools.opentofu.enable` | `bool` | `true` | Установка `opentofu`. |
-| `programs.k3s-infra.tools.terraform.enable` | `bool` | `false` | Установка `terraform`. |
-| `programs.k3s-infra.tools.extraPackages` | `listOf package` | `[]` | Дополнительные пакеты для установки. |
-| `programs.k3s-infra.kubeconfig.enable` | `bool` | `true` | Управление файлом kubeconfig. |
-| `programs.k3s-infra.kubeconfig.path` | `str` | `".kube/config"` | Относительный путь к kubeconfig в домашней директории. |
-| `programs.k3s-infra.kubeconfig.symlinkSource` | `nullOr str` | `null` | Системный путь для создания симлинка (например, `/etc/rancher/k3s/k3s.yaml`). |
-| `programs.k3s-infra.kubeconfig.source` | `nullOr path` | `null` | Nix store путь для kubeconfig. |
-| `programs.k3s-infra.kubeconfig.content` | `nullOr lines` | `null` | Содержимое kubeconfig в виде строки. |
-| `programs.k3s-infra.kubeconfig.setKubeconfigEnv` | `bool` | `false` | Экспорт переменной `KUBECONFIG`. |
-| `programs.k3s-infra.shellAliases.enable` | `bool` | `true` | Включение удобных алиасов для `kubectl` и `tofu`. |
-| `programs.k3s-infra.shellAliases.extraAliases` | `attrsOf str` | `{}` | Пользовательские дополнительные алиасы. |
+| `programs.k3s-infra.enable` | `bool` | `false` | Enable user environment tooling. |
+| `programs.k3s-infra.tools.enable` | `bool` | `true` | Install cluster & IaC tools (`kubectl`, `helm`, `k9s`, `opentofu`). |
+| `programs.k3s-infra.tools.kubectl.enable` | `bool` | `true` | Install `kubectl`. |
+| `programs.k3s-infra.tools.helm.enable` | `bool` | `true` | Install `helm`. |
+| `programs.k3s-infra.tools.k9s.enable` | `bool` | `true` | Install `k9s`. |
+| `programs.k3s-infra.tools.opentofu.enable` | `bool` | `true` | Install `opentofu`. |
+| `programs.k3s-infra.tools.terraform.enable` | `bool` | `false` | Install `terraform`. |
+| `programs.k3s-infra.tools.extraPackages` | `listOf package` | `[]` | Additional user packages. |
+| `programs.k3s-infra.kubeconfig.enable` | `bool` | `true` | Manage user kubeconfig. |
+| `programs.k3s-infra.kubeconfig.path` | `str` | `".kube/config"` | Relative path to kubeconfig in home directory. |
+| `programs.k3s-infra.kubeconfig.symlinkSource` | `nullOr str` | `null` | System path to symlink (e.g. `/etc/rancher/k3s/k3s.yaml`). |
+| `programs.k3s-infra.kubeconfig.source` | `nullOr path` | `null` | Nix store path for kubeconfig. |
+| `programs.k3s-infra.kubeconfig.content` | `nullOr lines` | `null` | Kubeconfig string content. |
+| `programs.k3s-infra.kubeconfig.setKubeconfigEnv` | `bool` | `false` | Export `KUBECONFIG` environment variable. |
+| `programs.k3s-infra.shellAliases.enable` | `bool` | `true` | Enable convenient shell aliases for `kubectl` and `tofu`/`terraform`. |
 
-*Примечание: Также доступен совместимый псевдоним `programs.ks3-infra`.*
+*Note: Compatible option alias `programs.ks3-infra` is also available.*
 
-### Полезные встроенные алиасы:
+### Included Shell Aliases:
 - `k` ➔ `kubectl`
 - `kgp` ➔ `kubectl get pods`
 - `kgpa` ➔ `kubectl get pods -A`
@@ -316,21 +345,21 @@ DevShell автоматически обнаруживает `/etc/rancher/k3s/k
 - `kex` ➔ `kubectl exec -it`
 - `kdel` ➔ `kubectl delete`
 - `kapply` ➔ `kubectl apply -f`
-- `tf` ➔ `tofu`
+- `tf` ➔ `tofu` (or `terraform` if only terraform is enabled)
 
 ---
 
-## 🔒 Безопасность и хранение секретов
+## 🔒 Security & Secrets Management
 
-Для передачи кластерного токена настоятельно рекомендуется избегать открытого текста в git-репозитории:
-- Используйте инструмент **[sops-nix](https://github.com/Mic92/sops-nix)** или **[agenix](https://github.com/ryantm/agenix)**.
-- Укажите путь к расшифрованному файлу:
+To avoid committing sensitive cluster tokens to Git:
+- Use **[sops-nix](https://github.com/Mic92/sops-nix)** or **[agenix](https://github.com/ryantm/agenix)**.
+- Pass the decrypted file path to `tokenFile`:
   ```nix
   services.k3s-infra.tokenFile = config.sops.secrets."k3s-token".path;
   ```
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
 MIT

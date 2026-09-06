@@ -14,6 +14,8 @@ let
     ++ cfg.tools.extraPackages
   );
 
+  tfAlias = if cfg.tools.terraform.enable && !cfg.tools.opentofu.enable then "terraform" else "tofu";
+
   defaultAliases = {
     k = "kubectl";
     kgp = "kubectl get pods";
@@ -29,7 +31,7 @@ let
     kex = "kubectl exec -it";
     kdel = "kubectl delete";
     kapply = "kubectl apply -f";
-    tf = "tofu";
+    tf = tfAlias;
   };
 in
 {

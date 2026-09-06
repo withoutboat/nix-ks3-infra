@@ -165,7 +165,37 @@ in
       enable = mkOption {
         type = types.bool;
         default = true;
-        description = "Install Kubernetes CLI tools (kubectl, helm, k9s) into system packages.";
+        description = "Install Kubernetes CLI and IaC tools (kubectl, helm, k9s, opentofu/terraform) into system packages.";
+      };
+
+      kubectl.enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Install kubectl CLI.";
+      };
+
+      helm.enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Install Helm CLI.";
+      };
+
+      k9s.enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Install k9s TUI.";
+      };
+
+      opentofu.enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Install OpenTofu CLI.";
+      };
+
+      terraform.enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install HashiCorp Terraform CLI (requires nixpkgs.config.allowUnfree = true).";
       };
 
       extraPackages = mkOption {
@@ -245,11 +275,12 @@ in
 
     # CLI tools
     environment.systemPackages = mkIf cfg.tools.enable (
-      [
-        pkgs.kubectl
-        pkgs.kubernetes-helm
-        pkgs.k9s
-      ] ++ cfg.tools.extraPackages
+      optionals cfg.tools.kubectl.enable [ pkgs.kubectl ]
+      ++ optionals cfg.tools.helm.enable [ pkgs.kubernetes-helm ]
+      ++ optionals cfg.tools.k9s.enable [ pkgs.k9s ]
+      ++ optionals cfg.tools.opentofu.enable [ pkgs.opentofu ]
+      ++ optionals cfg.tools.terraform.enable [ pkgs.terraform ]
+      ++ cfg.tools.extraPackages
     );
   };
 }
