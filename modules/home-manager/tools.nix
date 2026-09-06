@@ -38,6 +38,14 @@ in
   options.programs.k3s-infra = {
     enable = mkEnableOption "K3s user tooling and Kubernetes environment";
 
+    server = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Shortcut to enable rootless K3s user service (services.k3s-infra.enable).";
+      };
+    };
+
     tools = {
       enable = mkOption {
         type = types.bool;
@@ -137,31 +145,37 @@ in
     };
   };
 
-  config = mkIf cfg.enable {
-    home.packages = mkIf cfg.tools.enable packages;
+  config = mkMerge [
+    (mkIf cfg.enable {
+      home.packages = mkIf cfg.tools.enable packages;
 
-    home.file = mkIf cfg.kubeconfig.enable (mkMerge [
-      (mkIf (cfg.kubeconfig.symlinkSource != null) {
-        "${cfg.kubeconfig.path}".source = config.lib.file.mkOutOfStoreSymlink cfg.kubeconfig.symlinkSource;
-      })
-      (mkIf (cfg.kubeconfig.source != null) {
-        "${cfg.kubeconfig.path}".source = cfg.kubeconfig.source;
-      })
-      (mkIf (cfg.kubeconfig.content != null) {
-        "${cfg.kubeconfig.path}".text = cfg.kubeconfig.content;
-      })
-    ]);
+      home.file = mkIf cfg.kubeconfig.enable (mkMerge [
+        (mkIf (cfg.kubeconfig.symlinkSource != null) {
+          "${cfg.kubeconfig.path}".source = config.lib.file.mkOutOfStoreSymlink cfg.kubeconfig.symlinkSource;
+        })
+        (mkIf (cfg.kubeconfig.source != null) {
+          "${cfg.kubeconfig.path}".source = cfg.kubeconfig.source;
+        })
+        (mkIf (cfg.kubeconfig.content != null) {
+          "${cfg.kubeconfig.path}".text = cfg.kubeconfig.content;
+        })
+      ]);
 
-    home.sessionVariables = mkIf (cfg.kubeconfig.enable && cfg.kubeconfig.setKubeconfigEnv) {
-      KUBECONFIG =
-        if cfg.kubeconfig.symlinkSource != null then
-          cfg.kubeconfig.symlinkSource
-        else if cfg.kubeconfig.source != null then
-          toString cfg.kubeconfig.source
-        else
-          "${config.home.homeDirectory}/${cfg.kubeconfig.path}";
-    };
+      home.sessionVariables = mkIf (cfg.kubeconfig.enable && cfg.kubeconfig.setKubeconfigEnv) {
+        KUBECONFIG =
+          if cfg.kubeconfig.symlinkSource != null then
+            cfg.kubeconfig.symlinkSource
+          else if cfg.kubeconfig.source != null then
+            toString cfg.kubeconfig.source
+          else
+            "${config.home.homeDirectory}/${cfg.kubeconfig.path}";
+      };
 
-    home.shellAliases = mkIf cfg.shellAliases.enable (defaultAliases // cfg.shellAliases.extraAliases);
-  };
+      home.shellAliases = mkIf cfg.shellAliases.enable (defaultAliases // cfg.shellAliases.extraAliases);
+    })
+
+    (mkIf (cfg.enable && cfg.server.enable) {
+      services.k3s-infra.enable = true;
+    })
+  ];
 }
