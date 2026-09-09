@@ -5,7 +5,7 @@ with lib;
 let
   cfg = config.services.k3s-infra;
 
-  k3sPkg = if pkgs.stdenv.isLinux then pkgs.k3s else pkgs.emptyDirectory;
+  k3sPkg = if pkgs.stdenv.hostPlatform.isLinux then pkgs.k3s else pkgs.emptyDirectory;
 
   disableFlags = map (c: "--disable ${c}") cfg.disabledComponents;
 
@@ -184,7 +184,7 @@ in
   config = mkIf cfg.enable {
     assertions = [
       {
-        assertion = pkgs.stdenv.isLinux;
+        assertion = pkgs.stdenv.hostPlatform.isLinux;
         message = "services.k3s-infra daemon requires Linux. On macOS, consider running K3s inside a Linux VM or container.";
       }
       {
@@ -202,7 +202,7 @@ in
       KUBECONFIG = cfg.kubeconfig.path;
     };
 
-    systemd.user.services.k3s-infra = mkIf pkgs.stdenv.isLinux {
+    systemd.user.services.k3s-infra = mkIf pkgs.stdenv.hostPlatform.isLinux {
       Unit = {
         Description = "K3s lightweight Kubernetes (user rootless service)";
         Documentation = [ "https://k3s.io" ];

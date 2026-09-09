@@ -48,11 +48,11 @@
             k9s
             opentofu
             terraform
-          ] ++ (pkgs.lib.optional pkgs.stdenv.isLinux pkgs.k3s);
+          ] ++ (pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.k3s);
 
           shellHook = ''
             echo "🚀 nix-ks3-infra development shell activated"
-            echo "Installed tools: kubectl, helm, k9s, opentofu, terraform${if pkgs.stdenv.isLinux then ", k3s" else ""}"
+            echo "Installed tools: kubectl, helm, k9s, opentofu, terraform${if pkgs.stdenv.hostPlatform.isLinux then ", k3s" else ""}"
             echo ""
             if [ -f /etc/rancher/k3s/k3s.yaml ] && [ -z "$KUBECONFIG" ]; then
               export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
